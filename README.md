@@ -2,6 +2,8 @@
 
 这是一个云展网（yunzhan365.com）电子书下载工具，支持一键导出为 PDF，并进行基础数据分析。
 
+![](https://asiaassets.gokuscraper.com/images/2026/05/29/94b08118491a0019.webp)
+
 ## 核心优势
 
 - 免登录免配置，输入链接即可下载
