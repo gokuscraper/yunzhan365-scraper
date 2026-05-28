@@ -279,6 +279,8 @@ def run_download_pipeline(
 ) -> tuple[int, str, str, int]:
     try:
         book_url = normalize_book_url(url)
+        for old_pdf in Path.cwd().glob("*.pdf"):
+            old_pdf.unlink(missing_ok=True)
         status_holder.info(_("info_parsing"))
         log_placeholder.code("[INFO] 正在解析页面配置...\n", language="bash")
         html_config, html_title = load_html_config(book_url)

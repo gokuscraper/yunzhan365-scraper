@@ -55,7 +55,7 @@ python download_yunzhan_pdf.py https://book.yunzhan365.com/xxxxxx
 ## 环境要求
 
 - Python 3.10+
-- Node.js（用于解码云展网加密配置）
+- Node.js（用于解码）
 - Pillow（图片处理）
 
 安装依赖：
