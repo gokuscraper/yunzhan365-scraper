@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -254,7 +255,6 @@ def save_settings(target_input: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def init_state():
-    _clean_stale_lock()
     settings = load_settings()
     defaults = {
         "lang": "zh",
@@ -272,52 +272,18 @@ def init_state():
 
 # --- 互斥锁（防止多人并发导致 OOM） ---
 
-LOCK_FILE = Path.cwd() / ".run_lock"
 
-
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
-        return False
-
-
-def _clean_stale_lock():
-    if not LOCK_FILE.exists():
-        return
-    try:
-        data = json.loads(LOCK_FILE.read_text())
-        pid = data.get("pid")
-        if pid is None or pid == os.getpid() or not _pid_alive(pid):
-            LOCK_FILE.unlink(missing_ok=True)
-    except Exception:
-        LOCK_FILE.unlink(missing_ok=True)
+@st.cache_resource
+def _get_limiter():
+    return threading.BoundedSemaphore(value=1)
 
 
 def _acquire_lock() -> bool:
-    _clean_stale_lock()
-    if LOCK_FILE.exists():
-        try:
-            data = json.loads(LOCK_FILE.read_text())
-            elapsed = time.time() - data["time"]
-            if elapsed < 300:
-                return False
-        except Exception:
-            pass
-        LOCK_FILE.unlink(missing_ok=True)
-    LOCK_FILE.write_text(json.dumps({"time": time.time(), "pid": os.getpid()}))
-    return True
+    return _get_limiter().acquire(blocking=False)
 
 
 def _release_lock():
-    try:
-        if LOCK_FILE.exists():
-            data = json.loads(LOCK_FILE.read_text())
-            if data.get("pid") == os.getpid():
-                LOCK_FILE.unlink(missing_ok=True)
-    except Exception:
-        LOCK_FILE.unlink(missing_ok=True)
+    _get_limiter().release()
 
 
 def run_download_pipeline(
