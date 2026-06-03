@@ -99,8 +99,8 @@ if lang_options[selected_lang] != st.session_state.lang:
 
 st.divider()
 
-exec_page = st.Page("pages_content/0_PDF_Download.py", title=_("page_exec_title"), icon="⚡")
-analysis_page = st.Page("pages_content/1_Data_Analysis.py", title=_("page_analysis_title"), icon="📊")
+exec_page = st.Page("pages_content/1_Scraper.py", title=_("page_exec_title"), icon="⚡")
+analysis_page = st.Page("pages_content/2_Analysis.py", title=_("page_analysis_title"), icon="📊")
 pg = st.navigation([exec_page, analysis_page], position="sidebar")
 pg.run()
 
