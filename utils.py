@@ -1,4 +1,5 @@
 import base64
+import gc
 import gzip
 import json
 import mimetypes
@@ -144,6 +145,7 @@ else Module.onRuntimeInitialized = run;
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env={**os.environ, "NODE_OPTIONS": "--max-old-space-size=128"},
         )
         decoded = json.loads((temp_dir / "decoded.json").read_text(encoding="utf-8"))
     book_config, _ = json.JSONDecoder().raw_decode(decoded["bookConfig"])
@@ -295,6 +297,7 @@ def run_download_pipeline(
     if not _acquire_lock():
         status_holder.error("当前有其他任务正在执行，请稍后再试")
         return -2, "BUSY: 有其他任务正在执行", "", 0
+    gc.collect()
     try:
         book_url = normalize_book_url(url)
         for old_pdf in Path.cwd().glob("*.pdf"):
