@@ -41,8 +41,15 @@ def fetch_bytes(url: str, referer: str | None = None) -> bytes:
     if referer:
         headers["Referer"] = referer
     request = Request(url, headers=headers)
-    with urlopen(request, timeout=60) as response:
-        return response.read()
+    last_err = None
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=60) as response:
+                return response.read()
+        except Exception as e:
+            last_err = e
+            time.sleep(2)
+    raise last_err  # type: ignore
 
 def normalize_book_url(url: str) -> str:
     url = url.strip()
@@ -200,9 +207,26 @@ def download_pages(
     return page_paths
 
 def build_pdf(page_paths: list[Path], output: Path) -> None:
+    from PIL import Image
     import img2pdf
-    with open(output, "wb") as f:
-        f.write(img2pdf.convert([str(p) for p in page_paths]))
+    import tempfile
+    import os
+
+    tmp_files = []
+    try:
+        for p in page_paths:
+            with Image.open(p) as img:
+                tmp = tempfile.mktemp(suffix=".jpg")
+                img.convert("RGB").save(tmp, "JPEG", quality=95)
+                tmp_files.append(tmp)
+        with open(output, "wb") as f:
+            f.write(img2pdf.convert(tmp_files))
+    finally:
+        for t in tmp_files:
+            try:
+                os.unlink(t)
+            except Exception:
+                pass
 
 # --- UI 工具函数 (原 streamlit_app.py) ---
 
