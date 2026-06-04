@@ -17,7 +17,6 @@ from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 import streamlit as st
-from PIL import Image
 
 from i18n import _
 
@@ -201,17 +200,9 @@ def download_pages(
     return page_paths
 
 def build_pdf(page_paths: list[Path], output: Path) -> None:
-    images: list[Image.Image] = []
-    try:
-        for page_path in page_paths:
-            with Image.open(page_path) as image:
-                images.append(image.convert("RGB"))
-        if not images:
-            raise RuntimeError("没有可用于合成 PDF 的页面")
-        images[0].save(output, "PDF", save_all=True, append_images=images[1:], resolution=100.0)
-    finally:
-        for image in images:
-            image.close()
+    import img2pdf
+    with open(output, "wb") as f:
+        f.write(img2pdf.convert([str(p) for p in page_paths]))
 
 # --- UI 工具函数 (原 streamlit_app.py) ---
 
