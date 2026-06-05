@@ -92,20 +92,36 @@ def patch_destring_js(source: str) -> str:
     return source.replace(needle, patch, 1)
 
 def decode_configs(html_config: dict) -> tuple[dict, list[dict]]:
+    bc_raw = html_config["bookConfig"]
+    pp_raw = html_config["fliphtml5_pages"]
+
     node = shutil.which("node") or shutil.which("nodejs")
     if not node:
         raise RuntimeError("需要本机安装 Node.js，用来执行云展网的配置解码脚本")
-    encrypted = {
-        "bookConfig": html_config["bookConfig"],
-        "fliphtml5_pages": html_config["fliphtml5_pages"],
-    }
+
     with tempfile.TemporaryDirectory(prefix="yunzhan_") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
-        (temp_dir / "encrypted.json").write_text(json.dumps(encrypted), encoding="utf-8")
-        destring_js = patch_destring_js(fetch_text(DESTRING_URL))
-        (temp_dir / "deString.js").write_text(destring_js, encoding="utf-8")
-        (temp_dir / "decode.js").write_text(
-            r"""
+
+        encrypted = {}
+
+        # bookConfig: 可能已解密或是加密字符串
+        if isinstance(bc_raw, dict):
+            book_config = bc_raw
+        else:
+            encrypted["bookConfig"] = bc_raw
+
+        # fliphtml5_pages: 可能已是数组或是加密字符串
+        if isinstance(pp_raw, list):
+            pages = pp_raw
+        else:
+            encrypted["fliphtml5_pages"] = pp_raw
+
+        if encrypted:
+            (temp_dir / "encrypted.json").write_text(json.dumps(encrypted), encoding="utf-8")
+            destring_js = patch_destring_js(fetch_text(DESTRING_URL))
+            (temp_dir / "deString.js").write_text(destring_js, encoding="utf-8")
+            (temp_dir / "decode.js").write_text(
+                r"""
 const fs = require("fs");
 const encrypted = JSON.parse(fs.readFileSync("encrypted.json", "utf8"));
 const Module = require("./deString.js");
@@ -133,29 +149,32 @@ function deString(value) {
 }
 
 function run() {
-  const decoded = {
-    bookConfig: deString(encrypted.bookConfig),
-    pages: deString(encrypted.fliphtml5_pages),
-  };
+  const decoded = {};
+  if (encrypted.bookConfig !== undefined) decoded.bookConfig = deString(encrypted.bookConfig);
+  if (encrypted.fliphtml5_pages !== undefined) decoded.pages = deString(encrypted.fliphtml5_pages);
   fs.writeFileSync("decoded.json", JSON.stringify(decoded), "utf8");
 }
 
 if (Module.isReady) run();
 else Module.onRuntimeInitialized = run;
 """,
-            encoding="utf-8",
-        )
-        subprocess.run(
-            [node, "decode.js"],
-            cwd=temp_dir,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env={**os.environ, "NODE_OPTIONS": "--max-old-space-size=128"},
-        )
-        decoded = json.loads((temp_dir / "decoded.json").read_text(encoding="utf-8"))
-    book_config, _ = json.JSONDecoder().raw_decode(decoded["bookConfig"])
-    pages, _ = json.JSONDecoder().raw_decode(decoded["pages"])
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [node, "decode.js"],
+                cwd=temp_dir,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env={**os.environ, "NODE_OPTIONS": "--max-old-space-size=128"},
+            )
+            decoded = json.loads((temp_dir / "decoded.json").read_text(encoding="utf-8"))
+
+            if "bookConfig" in decoded:
+                book_config, _ = json.JSONDecoder().raw_decode(decoded["bookConfig"])
+            if "pages" in decoded:
+                pages, _ = json.JSONDecoder().raw_decode(decoded["pages"])
+
     return book_config, pages
 
 def safe_name(name: str) -> str:
