@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 framework_settings.json
-last_restart.txt
 .run_lock
 *.pdf
 _pages/
