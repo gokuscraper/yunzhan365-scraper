@@ -73,14 +73,14 @@ with title_col3:
                 """
                 <div style="display:flex; flex-direction:column; align-items:center; width:140px; margin:0 auto;">
                     <img src="{src}" style="width:140px; height:auto; display:block;" />
-                    <div style="margin-top:4px; text-align:center;">交流群</div>
+                    <div style="margin-top:4px; text-align:center;">公众号-反馈/建议</div>
                 </div>
                 """.format(src=gzh_src),
                 unsafe_allow_html=True,
             )
         else:
             st.image(resolve_asset_path("gzh.jpg"), width=140)
-            st.markdown("<div style='text-align: center; margin-top: 4px;'>交流群</div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; margin-top: 4px;'>公众号-反馈/建议</div>", unsafe_allow_html=True)
 
 st.caption(_("caption_top"))
 
