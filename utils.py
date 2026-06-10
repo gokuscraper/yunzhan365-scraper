@@ -375,22 +375,39 @@ def run_download_pipeline(
         pages_dir = Path(f"{stem}_pages")
         urls = page_urls(book_url, book_config, pages)
 
-        # 预生成缩略图回退 URL（用于部分大图缺失时逐页降级）
-        thumb_urls: list[str | None] = []
-        for p in pages:
-            t = p.get("t")
-            if t:
-                thumb_urls.append(urljoin(book_url, t))
-            else:
-                thumb_urls.append(None)
-
-        # 探针：尝第一页，缓存数据避免重复下载
+        # 探针：尝第一页；若失败则整体降级缩略图（isFlipPdf 的 .zip），避免逐页重试浪费
         first_page_data = None
+        use_thumb = False
         if urls:
             try:
                 first_page_data = fetch_bytes(urls[0], referer=book_url)
             except Exception:
-                pass
+                use_thumb = True
+
+        if use_thumb:
+            thumb_path = book_config.get("thumbPath", "../files/thumb/")
+            thumb_base = urljoin(book_url, thumb_path) if str(thumb_path).startswith(("../", "/")) else urljoin(
+                book_url.split("/mobile/", 1)[0] + "/", thumb_path
+            )
+            urls = []
+            for p in pages:
+                t = p.get("t")
+                if t:
+                    urls.append(urljoin(book_url, t))
+                else:
+                    n = p.get("n")
+                    name = n[0] if isinstance(n, list) and n else (n if isinstance(n, str) else "page.webp")
+                    name = Path(name).stem + ".webp"
+                    urls.append(urljoin(thumb_base, name))
+
+        # 预生成缩略图回退 URL（混合书型：部分大图缺失时逐页降级）
+        thumb_urls: list[str | None] = []
+        for p in pages:
+            if use_thumb:
+                thumb_urls.append(None)  # 已全部降级，无需额外回退
+            else:
+                t = p.get("t")
+                thumb_urls.append(urljoin(book_url, t) if t else None)
 
         current_log = f"[INFO] 找到 {len(urls)} 页\n"
         log_placeholder.code(current_log, language="bash")
