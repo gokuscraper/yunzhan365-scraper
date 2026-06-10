@@ -334,7 +334,7 @@ def run_download_pipeline(
     progress_bar,
 ) -> tuple[int, str, str, int]:
     if not _acquire_lock():
-        status_holder.error("当前有其他任务正在执行，请稍后再试")
+        status_holder.error("当前有其它用户使用，请稍后再试")
         return -2, "BUSY: 有其他任务正在执行", "", 0
     gc.collect()
     try:
