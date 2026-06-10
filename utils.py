@@ -45,7 +45,10 @@ def fetch_bytes(url: str, referer: str | None = None) -> bytes:
     for attempt in range(3):
         try:
             with urlopen(request, timeout=60) as response:
-                return response.read()
+                data = response.read()
+                if len(data) == 0:
+                    raise ValueError("empty response body")
+                return data
         except Exception as e:
             last_err = e
             time.sleep(2)
@@ -210,6 +213,7 @@ def download_pages(
     referer: str,
     progress_callback: Callable[[int, int, str], None] | None = None,
     page1_data: bytes | None = None,
+    thumb_urls: list[str | None] | None = None,
 ) -> list[Path]:
     pages_dir.mkdir(parents=True, exist_ok=True)
     page_paths = []
@@ -221,13 +225,23 @@ def download_pages(
             if progress_callback:
                 progress_callback(index, len(urls), f"[skip] 第 {index:03d} 页 (已存在)")
             continue
-        if index == 1 and page1_data is not None:
-            data = page1_data
-        else:
-            data = fetch_bytes(url, referer=referer)
-        page_path.write_bytes(data)
+        try:
+            if index == 1 and page1_data is not None:
+                data = page1_data
+            else:
+                data = fetch_bytes(url, referer=referer)
+            page_path.write_bytes(data)
+            msg = f"[download] 第 {index:03d}/{len(urls)} 页"
+        except Exception:
+            fb = thumb_urls[index - 1] if thumb_urls and index - 1 < len(thumb_urls) else None
+            if fb:
+                data = fetch_bytes(fb, referer=referer)
+                page_path.write_bytes(data)
+                msg = f"[thumb] 第 {index:03d}/{len(urls)} 页"
+            else:
+                raise
         if progress_callback:
-            progress_callback(index, len(urls), f"[download] 第 {index:03d}/{len(urls)} 页")
+            progress_callback(index, len(urls), msg)
     return page_paths
 
 def build_pdf(page_paths: list[Path], output: Path) -> None:
@@ -361,33 +375,24 @@ def run_download_pipeline(
         pages_dir = Path(f"{stem}_pages")
         urls = page_urls(book_url, book_config, pages)
 
-        # 探针：尝试下载第一页，若失败（isFlipPdf 的 .zip 返回 404）
-        # 则全部改用缩略图；若成功则缓存第一页避免重复下载
-        use_thumb = False
+        # 预生成缩略图回退 URL（用于部分大图缺失时逐页降级）
+        thumb_urls: list[str | None] = []
+        for p in pages:
+            t = p.get("t")
+            if t:
+                thumb_urls.append(urljoin(book_url, t))
+            else:
+                thumb_urls.append(None)
+
+        # 探针：尝第一页，缓存数据避免重复下载
         first_page_data = None
         if urls:
             try:
                 first_page_data = fetch_bytes(urls[0], referer=book_url)
             except Exception:
-                use_thumb = True
+                pass
 
-        if use_thumb:
-            thumb_path = book_config.get("thumbPath", "../files/thumb/")
-            thumb_base = urljoin(book_url, thumb_path) if str(thumb_path).startswith(("../", "/")) else urljoin(
-                book_url.split("/mobile/", 1)[0] + "/", thumb_path
-            )
-            urls = []
-            for p in pages:
-                t = p.get("t")
-                if t:
-                    urls.append(urljoin(book_url, t))
-                else:
-                    n = p.get("n")
-                    name = n[0] if isinstance(n, list) and n else (n if isinstance(n, str) else "page.webp")
-                    name = Path(name).stem + ".webp"
-                    urls.append(urljoin(thumb_base, name))
-
-        current_log = f"[INFO] 找到 {len(urls)} 页（{'缩略图' if use_thumb else '大图'}模式）\n"
+        current_log = f"[INFO] 找到 {len(urls)} 页\n"
         log_placeholder.code(current_log, language="bash")
 
         status_holder.info(_("info_downloading").format(total=len(urls)))
@@ -399,7 +404,7 @@ def run_download_pipeline(
             log_placeholder.code(current_log, language="bash")
             progress_bar.progress(index / total)
 
-        page_paths = download_pages(urls, pages_dir, book_url, progress_callback=on_progress, page1_data=first_page_data)
+        page_paths = download_pages(urls, pages_dir, book_url, progress_callback=on_progress, page1_data=first_page_data, thumb_urls=thumb_urls)
 
         status_holder.info(_("info_building_pdf"))
         current_log += "[INFO] 正在生成 PDF...\n"
