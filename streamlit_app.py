@@ -84,6 +84,15 @@ with title_col3:
 
 st.caption(_("caption_top"))
 
+st.markdown(
+    """
+    <div style="background:#fff3cd; color:#856404; padding:12px 16px; border-radius:6px; border:1px solid #ffeeba; margin:12px 0; text-align:center; font-weight:bold;">
+        因版权方投诉，本服务已暂停使用 · This service has been suspended due to copyright complaints.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 lang_options = {"简体中文": "zh", "English": "en"}
 current_lang_idx = list(lang_options.values()).index(st.session_state.lang)
 selected_lang = st.radio(
